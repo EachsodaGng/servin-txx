@@ -1,10 +1,12 @@
 import requests
 import json
 import os
+import re
 from langdetect import detect
 
-# 🔗 PUT YOUR DISCORD WEBHOOK HERE
-WEBHOOK_URL = "MTQ1Njc3NTE1NDE1NDYwNjcyNQ.GtwZBO.c10z2PHo4Y_ww2uGAc9E_kxmCOtUlELtTQCuTI"
+WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
+if not WEBHOOK_URL:
+    raise RuntimeError("DISCORD_WEBHOOK_URL environment variable is not set")
 
 # ✅ NEW WORKING ROBLOX API
 API_URL = "https://create.roblox.com/apis/marketplace-items/v1/items"
@@ -31,7 +33,7 @@ else:
 def detect_language(text):
     try:
         return detect(text)
-    except:
+    except Exception:
         return "unknown"
 
 def send_to_discord(name, asset_id, lang):
@@ -70,6 +72,10 @@ def main():
         asset = item.get("asset", {})
         asset_id = str(asset.get("assetId"))
         name = asset.get("name", "").strip()
+
+        if not re.fullmatch(r"\d+", asset_id):
+            print(f"Skipping invalid asset ID: {asset_id}")
+            continue
 
         if not name or asset_id in seen:
             continue

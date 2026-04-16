@@ -9,7 +9,9 @@ import time
 import shutil
 
 # ================== CONFIG ==================
-WEBHOOK_URL = "https://discord.com/api/webhooks/1456765063250837737/hHgALznytcMEMnuMypAmW7SAk2zyig1YCfRPak4hLh1MGuOSN5qYsUHfxn9gF63FD6X-"
+WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
+if not WEBHOOK_URL:
+    raise RuntimeError("DISCORD_WEBHOOK_URL environment variable is not set")
 TARGET_URL = "https://create.roblox.com/store/audio/discoverNewAudio/distrokid-hits"
 PROFILE_DIR = "roblox_profile"
 SEEN_FILE = "seen_audio.json"
@@ -37,10 +39,13 @@ def save_seen():
 def detect_language(text):
     try:
         return detect(text)
-    except:
+    except Exception:
         return "unknown"
 
 def download_audio(asset_id):
+    if not re.fullmatch(r"\d+", str(asset_id)):
+        print(f"Invalid asset ID (non-numeric): {asset_id}")
+        return None
     url = f"https://assetdelivery.roblox.com/v1/asset?id={asset_id}"
     path = os.path.join(DOWNLOAD_DIR, f"{asset_id}.ogg")
 
@@ -69,17 +74,25 @@ def send_to_discord(name, asset_id, asset_url, lang, image_path, audio_path):
     }
 
     files = {}
-    if os.path.exists(image_path):
-        files["screenshot"] = open(image_path, "rb")
-    if os.path.exists(audio_path):
-        files["audio"] = open(audio_path, "rb")
-
+    file_handles = []
     try:
+        if os.path.exists(image_path):
+            fh = open(image_path, "rb")
+            file_handles.append(fh)
+            files["screenshot"] = fh
+        if os.path.exists(audio_path):
+            fh = open(audio_path, "rb")
+            file_handles.append(fh)
+            files["audio"] = fh
+
         r = requests.post(WEBHOOK_URL, data=payload, files=files)
         if r.status_code not in (200, 204):
             print("⚠️ Discord webhook error:", r.status_code)
     except requests.RequestException as e:
         print(f"Failed to send data to Discord: {e}")
+    finally:
+        for fh in file_handles:
+            fh.close()
 
 # ---------------- BROWSER RUN FOR EACH TAB ----------------
 async def run_browser_cycle(tab_num, context):
